@@ -16,8 +16,14 @@ receive.queue_bind(exchange='download', queue=queue_name)
 
 def callback(ch, method, properties, body):
     json_data = json.loads(body.decode())
-    image = Image.open(io.BytesIO(base64.b64decode(json_data["img"])))
-    image.save(os.path.join('./output/', json_data["name"]))
+
+    if json_data.get("msg"):
+        print('Downloader Module received end of list; closing connection')
+        receive.close()
+    else:
+        image = Image.open(io.BytesIO(base64.b64decode(json_data["img"])))
+        image.save(os.path.join('./output/', json_data["name"]))
 
 receive.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
+print('Receiver Module now consuming from RabbitMQ')
 receive.start_consuming()

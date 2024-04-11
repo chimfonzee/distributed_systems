@@ -38,3 +38,6 @@ if __name__ == "__main__":
 
             msg_json = json.dumps(msg_dict)
             channel.basic_publish(exchange='upload', routing_key='', body=msg_json)
+
+    print('Reached end of image lists; sending end of list message')
+    channel.basic_publish(exchange='upload', routing_key='', body=json.dumps({"msg": "end"}))

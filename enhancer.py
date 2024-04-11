@@ -20,34 +20,42 @@ receive.queue_bind(exchange='upload', queue=queue_name)
 
 def callback(ch, method, properties, body):
     json_data = json.loads(body.decode())
-    enhancements = json_data["enhancements"]
-    image = Image.open(io.BytesIO(base64.b64decode(json_data["img"])))
 
-    enhancer = ImageEnhance.Brightness(image)
-    image = enhancer.enhance(enhancements["brightness"])
+    if json_data.get("msg"):
+        send.basic_publish(exchange='download', routing_key='', body=json.dumps({"msg": "end"}))
+        print('Enhancer Module received end of list; closing connections')
+        receive.close()
+        send.close()
+    else:
+        enhancements = json_data["enhancements"]
+        image = Image.open(io.BytesIO(base64.b64decode(json_data["img"])))
 
-    enhancer = ImageEnhance.Sharpness(image)
-    image = enhancer.enhance(enhancements["sharpness"])
+        enhancer = ImageEnhance.Brightness(image)
+        image = enhancer.enhance(enhancements["brightness"])
 
-    enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(enhancements["contrast"])
+        enhancer = ImageEnhance.Sharpness(image)
+        image = enhancer.enhance(enhancements["sharpness"])
 
-    temp_file = f'./temp.{json_data["name"].split(".")[1]}'
-    image.save(temp_file)
+        enhancer = ImageEnhance.Contrast(image)
+        image = enhancer.enhance(enhancements["contrast"])
 
-    with open(temp_file, 'rb') as image_file:
-        data = base64.b64encode(image_file.read())
+        temp_file = f'./temp.{json_data["name"].split(".")[1]}'
+        image.save(temp_file)
 
-        msg_dict = {
-            "name": json_data["name"],
-            "output_folder": json_data["output_folder"],
-            "img": data.decode()
-        }
+        with open(temp_file, 'rb') as image_file:
+            data = base64.b64encode(image_file.read())
 
-        msg_json = json.dumps(msg_dict)
-        send.basic_publish(exchange='download', routing_key='', body=msg_json)
-    
-    os.remove(temp_file)
+            msg_dict = {
+                "name": json_data["name"],
+                "output_folder": json_data["output_folder"],
+                "img": data.decode()
+            }
+
+            msg_json = json.dumps(msg_dict)
+            send.basic_publish(exchange='download', routing_key='', body=msg_json)
+        
+        os.remove(temp_file)
 
 receive.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
+print('Enhancer Module now consuming from RabbitMQ')
 receive.start_consuming()
