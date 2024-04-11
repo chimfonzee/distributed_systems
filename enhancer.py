@@ -1,7 +1,7 @@
 from PIL import Image, ImageEnhance
 
 import pika
-import base64, io, json, os
+import base64, io, json, os, uuid
 
 credentials = pika.PlainCredentials('rabbituser', 'rabbit1234')
 
@@ -12,13 +12,14 @@ receive = receive_conn.channel()
 send = send_conn.channel()
 
 receive.exchange_declare(exchange='upload', exchange_type='fanout')
-send.queue_declare(queue='accept')
-result = receive.queue_declare(queue='', exclusive=True)
+send.queue_declare(queue='accept', auto_delete=True)
+result = receive.queue_declare(queue='equeue', exclusive=False)
 queue_name = result.method.queue
 
 receive.queue_bind(exchange='upload', queue=queue_name)
 
 def callback(ch, method, properties, body):
+    ch.basic_ack(delivery_tag=method.delivery_tag)
     json_data = json.loads(body.decode())
 
     if json_data.get("msg"):
@@ -27,6 +28,7 @@ def callback(ch, method, properties, body):
         receive.close()
         send.close()
     else:
+        print(json_data["name"])
         enhancements = json_data["enhancements"]
         image = Image.open(io.BytesIO(base64.b64decode(json_data["img"])))
 
@@ -39,7 +41,7 @@ def callback(ch, method, properties, body):
         enhancer = ImageEnhance.Contrast(image)
         image = enhancer.enhance(enhancements["contrast"])
 
-        temp_file = f'./temp.{json_data["name"].split(".")[1]}'
+        temp_file = f'./{str(uuid.uuid4())}.{json_data["name"].split(".")[1]}'
         image.save(temp_file)
 
         with open(temp_file, 'rb') as image_file:
@@ -56,6 +58,6 @@ def callback(ch, method, properties, body):
         
         os.remove(temp_file)
 
-receive.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
+receive.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=False)
 print('Enhancer Module now consuming from RabbitMQ')
 receive.start_consuming()

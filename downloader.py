@@ -9,7 +9,7 @@ connection = pika.BlockingConnection(pika.ConnectionParameters('127.0.0.1', 5672
 receive = connection.channel()
 
 receive.exchange_declare(exchange='download', exchange_type='fanout')
-result = receive.queue_declare(queue='', exclusive=True)
+result = receive.queue_declare(queue='dqueue', exclusive=True)
 queue_name = result.method.queue
 
 receive.queue_bind(exchange='download', queue=queue_name)
@@ -21,6 +21,7 @@ def callback(ch, method, properties, body):
         print('Downloader Module received end of list; closing connection')
         receive.close()
     else:
+        print(json_data["name"])
         image = Image.open(io.BytesIO(base64.b64decode(json_data["img"])))
         image.save(os.path.join('./output/', json_data["name"]))
 
